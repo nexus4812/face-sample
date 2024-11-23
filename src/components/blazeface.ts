@@ -1,27 +1,6 @@
 import * as blazeface from '@tensorflow-models/blazeface';
 import '@tensorflow/tfjs';
 
-export async function setupCamera(): Promise<HTMLVideoElement> {
-    const video = document.getElementById('webcam') as HTMLVideoElement;
-
-    if (!video) {
-        throw new Error('Video element not found');
-    }
-
-    // カメラストリームの取得
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-    });
-
-    video.srcObject = stream;
-
-    return new Promise((resolve) => {
-        video.onloadedmetadata = () => {
-            resolve(video);
-        };
-    });
-}
-
 export async function loadAndRunModel(video: HTMLVideoElement) {
     const model = await blazeface.load();
     const canvas = document.getElementById('overlay') as HTMLCanvasElement;
