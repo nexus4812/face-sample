@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@tensorflow-models/blazeface": "^0.1.0",
+    "@tensorflow-models/face-landmarks-detection": "^1.0.6",
     "@tensorflow/tfjs": "^4.22.0"
   }
 }
