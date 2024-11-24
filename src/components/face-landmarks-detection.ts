@@ -6,8 +6,36 @@ import {Keypoint} from "@tensorflow-models/face-landmarks-detection";
 
 export async function execute(videoElement: HTMLVideoElement): Promise<void> {
     const model = await createModel();
-    setInterval(() => {
-        detectFaceMovement(videoElement, model);
+
+    let completeVerticalMovementSignificant = false;
+    let completeOrizontalMovementSignificant = false;
+    let isNotFaceConsistent = false;
+
+    setInterval(async () => {
+
+        // 動画フレームから顔のランドマークを推定
+        const predictions = await model.estimateFaces(videoElement);
+
+        if (predictions.length === 0) {
+            return false;
+        }
+
+        const landmarks = predictions[0].keypoints;
+
+        if (isNotFaceConsistent || !isFaceConsistent(landmarks)) {
+            isNotFaceConsistent = true
+            console.log("face is not consistent")
+        }
+
+        completeVerticalMovementSignificant = await isVerticalMovementSignificant(landmarks)
+        if (completeVerticalMovementSignificant) {
+            // console.log("vertical movement detected")
+        }
+
+        completeOrizontalMovementSignificant = await isHorizontalMovementSignificant(landmarks)
+        if (completeOrizontalMovementSignificant) {
+            // console.log("Orizontal movement detected")
+        }
     }, 100);
 }
 
@@ -24,41 +52,77 @@ export async function createModel(): Promise<FaceLandmarksDetector> {
     )
 }
 
-// 右目と左目の動きを特定するサンプル
-export async function detectFaceMovement(videoElement: HTMLVideoElement, model: FaceLandmarksDetector) {
 
-    // 動画フレームから顔のランドマークを推定
-    const predictions = await model.estimateFaces(videoElement);
+let lastLandMarks: Keypoint[]  = []
 
-    if (predictions.length > 0) {
-        const landmarks = predictions[0].keypoints; // ランドマーク情報
+// 途中で顔の差し替えがないか、前回のfaceLandmarkと比較して検証する
+function isFaceConsistent(
+    current: faceLandmarksDetection.Keypoint[]
+): boolean {
+    const prev = lastLandMarks
+    lastLandMarks = current;
 
-        // 必要なランドマークを取得
-        const leftEye: Keypoint = landmarks.find(l => l.name === 'leftEye')!;
-        const rightEye: Keypoint = landmarks.find(l => l.name === 'rightEye')!;
-
-        if (leftEye === null || rightEye === null) {
-            return false;
-        }
-
-        console.log('Left Eye:', leftEye);
-        console.log('Right Eye:', rightEye);
-
-        // 顔の動きや位置を確認
-        // 例: 左右の目の位置の差で顔の動きを検出
-        const movementThreshold = 5;
-        let movementDetected = false;
-
-        if (Math.abs(leftEye.x - rightEye.x) > movementThreshold) {
-            movementDetected = true;
-        }
-
-        if (movementDetected) {
-            console.log('Face movement detected!');
-        } else {
-            console.log('No significant face movement detected.');
-        }
-    } else {
-        console.log('No faces detected.');
+    // 1回目は存在しないのでOK
+    if (prev.length === 0) {
+        return true
     }
+
+    let totalDisplacement = 0;
+
+    for (let i = 0; i < prev.length; i++) {
+
+        const dx = current[i].x - prev[i].x;
+        const dy = current[i].y - prev[i].y;
+        const dz = (current[i].z || 0) - (prev[i].z || 0); // z軸も考慮
+
+        totalDisplacement += Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    // 一貫性を判断するための閾値 (調整可能)
+    return totalDisplacement < 20000; // 一定以上変化していないか
 }
+
+
+let firstVerticalHeight: number|null = null
+function isVerticalMovementSignificant(
+    keypoints: faceLandmarksDetection.Keypoint[]
+): boolean {
+    const lip = keypoints.find(k => k.name === "lips");
+    const leftEye = keypoints.find(k => k.name === "leftEye");
+    const rightEye = keypoints.find(k => k.name === "rightEye");
+
+    if (!leftEye || !rightEye || !lip) {
+        console.warn("Keypoints for vertical movement detection are missing.");
+        return false;
+    }
+
+    // 縦方向の動きを計算（鼻先と目の中心の位置差）
+    const verticalMovement = Math.abs(lip.y - (leftEye.y + rightEye.y) / 2);
+
+    if (firstVerticalHeight === null) {
+        firstVerticalHeight = verticalMovement
+        return false;
+    }
+
+    // 動きが十分であれば true
+    return Math.abs(verticalMovement - firstVerticalHeight) > 20; // 閾値は調整可能
+}
+
+function isHorizontalMovementSignificant(
+    keypoints: faceLandmarksDetection.Keypoint[]
+): boolean {
+    const leftEye = keypoints.find(k => k.name === "leftEye");
+    const rightEye = keypoints.find(k => k.name === "rightEye");
+
+    if (!leftEye || !rightEye) {
+        console.warn("Keypoints for horizontal movement detection are missing.");
+        return false;
+    }
+
+    // 横方向の動きを計算（左右の目の位置差）
+    const horizontalMovement = Math.abs(leftEye.x - rightEye.x);
+
+    // 動きが十分であれば true
+    return horizontalMovement > 100; // 閾値は調整可能
+}
+
