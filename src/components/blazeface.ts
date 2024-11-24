@@ -16,12 +16,17 @@ export async function loadAndRunModel(video: HTMLVideoElement) {
     async function detectFaces() {
         const predictions = await model.estimateFaces(video, false);
 
+        // @ts-ignore
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        predictions.forEach((prediction) => {
+        predictions.forEach((prediction: { topLeft: [any, any]; bottomRight: [any, any]; }) => {
             if (prediction.topLeft && prediction.bottomRight) {
                 const [x1, y1] = prediction.topLeft;
                 const [x2, y2] = prediction.bottomRight;
+
+                if (!ctx) {
+                    throw new Error('Canvas rendering context not found');
+                }
 
                 ctx.strokeStyle = 'red';
                 ctx.lineWidth = 2;
