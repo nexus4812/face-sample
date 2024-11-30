@@ -4,12 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Face Detection</title>
-  <link rel="stylesheet" href="./src/styles.css" />
 </head>
 <body>
 <div id="app">
+  <div id="instructions">
+    <p id="movement-indicator"><span id="direction"></span></p>
+  </div>
   <video id="webcam" autoplay playsinline></video>
   <canvas id="overlay"></canvas>
+  <div id="feedback">
+    <div id="status-message">Initializing...</div>
+    <div id="progress-bar">
+      <div id="progress"></div>
+    </div>
+  </div>
 </div>
 <script type="module" src="./src/main.ts"></script>
 </body>

@@ -3,16 +3,44 @@ import '@tensorflow/tfjs-backend-webgl';
 import {FaceLandmarksDetector} from "@tensorflow-models/face-landmarks-detection/dist/face_landmarks_detector";
 import {Keypoint} from "@tensorflow-models/face-landmarks-detection";
 
+const statusMessageElement = document.getElementById("status-message")!;
+const progressBarElement = document.getElementById("progress")!;
+const directionElement = document.getElementById("direction")!;
+
+let verticalVerified = false;
+let horizontalVerified = false;
+let currentProgress = 0;
+
+async function updateUI(status: string, progress: number) {
+    statusMessageElement.textContent = status;
+    currentProgress = Math.min(100, progress);
+    progressBarElement.style.width = `${currentProgress}%`;
+
+    if (!verticalVerified) {
+        directionElement.textContent = 'Move your face up'
+        return;
+    }
+
+    if (!horizontalVerified) {
+        directionElement.textContent = 'Move your face side-to-side'
+        return;
+    }
+
+    directionElement.textContent = 'Completed!!'
+}
+
+async function resetUI(reason: string) {
+    await updateUI(reason, 0);
+    verticalVerified = false;
+    horizontalVerified = false;
+}
 
 export async function execute(videoElement: HTMLVideoElement): Promise<void> {
     const model = await createModel();
 
-    let completeVerticalMovementSignificant = false;
-    let completeOrizontalMovementSignificant = false;
-    let isNotFaceConsistent = false;
+    await updateUI('Start face authentication', 0)
 
     setInterval(async () => {
-
         // 動画フレームから顔のランドマークを推定
         const predictions = await model.estimateFaces(videoElement);
 
@@ -21,20 +49,23 @@ export async function execute(videoElement: HTMLVideoElement): Promise<void> {
         }
 
         const landmarks = predictions[0].keypoints;
-
-        if (isNotFaceConsistent || !isFaceConsistent(landmarks)) {
-            isNotFaceConsistent = true
-            console.log("face is not consistent")
+        if (!isFaceConsistent(landmarks)) {
+            await resetUI("Face consistency failed. Resetting...");
+            return;
         }
 
-        completeVerticalMovementSignificant = await isVerticalMovementSignificant(landmarks)
-        if (completeVerticalMovementSignificant) {
-            // console.log("vertical movement detected")
+        if (!verticalVerified && isVerticalMovementSignificant(landmarks)) {
+            verticalVerified = true;
+            await updateUI("Vertical movement verified", currentProgress + 50);
         }
 
-        completeOrizontalMovementSignificant = await isHorizontalMovementSignificant(landmarks)
-        if (completeOrizontalMovementSignificant) {
-            // console.log("Orizontal movement detected")
+        if (!horizontalVerified && isHorizontalMovementSignificant(landmarks)) {
+            horizontalVerified = true;
+            await updateUI("Horizontal movement verified", currentProgress + 50);
+        }
+
+        if (verticalVerified && horizontalVerified) {
+            await updateUI(`Face authentication successful! Your face Id`, 100);
         }
     }, 100);
 }
@@ -105,9 +136,10 @@ function isVerticalMovementSignificant(
     }
 
     // 動きが十分であれば true
-    return Math.abs(verticalMovement - firstVerticalHeight) > 20; // 閾値は調整可能
+    return Math.abs(verticalMovement - firstVerticalHeight) > 30; // 閾値は調整可能
 }
 
+let firstHorizontal: number|null = null
 function isHorizontalMovementSignificant(
     keypoints: faceLandmarksDetection.Keypoint[]
 ): boolean {
@@ -121,8 +153,12 @@ function isHorizontalMovementSignificant(
 
     // 横方向の動きを計算（左右の目の位置差）
     const horizontalMovement = Math.abs(leftEye.x - rightEye.x);
+    if (firstHorizontal === null) {
+        firstHorizontal = horizontalMovement;
+        return false;
+    }
 
     // 動きが十分であれば true
-    return horizontalMovement > 100; // 閾値は調整可能
+    return Math.abs(firstHorizontal - horizontalMovement) > 30; // 閾値は調整可能
 }
 
