@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "deploy": "npm run build && mv dist deploy",
+    "deploy": "npm run build && mv dist docs",
     "preview": "vite preview"
   },
   "devDependencies": {
